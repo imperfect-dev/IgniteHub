@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Star, Calendar, Tag, Clock, Users, Globe, DollarSign, Zap, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Calendar, Tag, Clock, Users, Globe, DollarSign, Zap, CheckCircle, AlertCircle } from 'lucide-react';
 import { categories } from '../data/resources';
 import PageHeader from '../components/layout/PageHeader';
 import ContentContainer from '../components/layout/ContentContainer';
@@ -90,31 +90,6 @@ const ResourceDetail: React.FC = () => {
                     <CardTitle className="text-3xl font-bold text-gray-900 mb-4">
                       {resource.name}
                     </CardTitle>
-                    
-                    {/* Rating */}
-                    {resource.rating && (
-                      <div className="flex items-center space-x-2 mb-4">
-                        <div className="flex items-center">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              size={20}
-                              className={`${
-                                star <= Math.round(resource.rating!)
-                                  ? 'text-yellow-400 fill-current'
-                                  : 'text-gray-300'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-lg font-medium text-gray-900">
-                          {resource.rating.toFixed(1)}
-                        </span>
-                        <span className="text-gray-600">
-                          ({resource.reviewCount} reviews)
-                        </span>
-                      </div>
-                    )}
 
                     {/* Badges */}
                     <div className="flex flex-wrap gap-3 mb-6">
@@ -337,14 +312,6 @@ const ResourceDetail: React.FC = () => {
                         <p className="text-sm text-gray-600 line-clamp-2">
                           {relatedResource.description}
                         </p>
-                        {relatedResource.rating && (
-                          <div className="flex items-center mt-2">
-                            <Star size={14} className="text-yellow-400 fill-current mr-1" />
-                            <span className="text-sm text-gray-600">
-                              {relatedResource.rating.toFixed(1)}
-                            </span>
-                          </div>
-                        )}
                       </Link>
                     ))}
                 </div>

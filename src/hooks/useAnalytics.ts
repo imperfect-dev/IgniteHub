@@ -22,6 +22,12 @@ export const useAnalytics = () => {
     duration: number = 0
   ) => {
     try {
+      // Skip tracking if using placeholder Supabase
+      if (supabase.supabaseUrl.includes('placeholder')) {
+        console.log('Analytics tracking skipped (placeholder Supabase)');
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       await supabase.from('resource_views').insert({
@@ -46,6 +52,12 @@ export const useAnalytics = () => {
     filtersApplied: Record<string, any> = {}
   ) => {
     try {
+      // Skip tracking if using placeholder Supabase
+      if (supabase.supabaseUrl.includes('placeholder')) {
+        console.log('Analytics tracking skipped (placeholder Supabase)');
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       await supabase.from('search_analytics').insert({
@@ -68,6 +80,12 @@ export const useAnalytics = () => {
     resourcesViewed: number = 0
   ) => {
     try {
+      // Skip tracking if using placeholder Supabase
+      if (supabase.supabaseUrl.includes('placeholder')) {
+        console.log('Analytics tracking skipped (placeholder Supabase)');
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       await supabase.from('category_analytics').insert({
@@ -85,6 +103,11 @@ export const useAnalytics = () => {
   // Update session
   const updateSession = useCallback(async () => {
     try {
+      // Skip tracking if using placeholder Supabase
+      if (supabase.supabaseUrl.includes('placeholder')) {
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       await supabase.from('user_sessions').upsert({

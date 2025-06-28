@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, Star, Eye, BookOpen } from 'lucide-react';
+import { ExternalLink, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Resource } from '../../data/resources';
 
@@ -36,28 +36,6 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource, categoryId = '' }
         <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
           {resource.description}
         </p>
-
-        {/* Rating */}
-        {resource.rating && (
-          <div className="flex items-center space-x-2 mt-3">
-            <div className="flex items-center">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star
-                  key={star}
-                  size={16}
-                  className={`${
-                    star <= Math.round(resource.rating!)
-                      ? 'text-yellow-400 fill-current'
-                      : 'text-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
-            <span className="text-sm text-gray-600">
-              {resource.rating.toFixed(1)} ({resource.reviewCount} reviews)
-            </span>
-          </div>
-        )}
       </div>
 
       <div className="space-y-3">
