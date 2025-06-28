@@ -89,28 +89,17 @@ const ContactPage = () => {
     }
   };
 
-  // Submit to Supabase with enhanced error handling
+  // Submit to Supabase with improved error handling
   const submitToSupabase = async () => {
     if (!supabaseConfigured) {
       throw new Error('Supabase not configured');
     }
 
     try {
-      // Test connection first
-      console.log('Testing Supabase connection...');
-      const { data: testData, error: testError } = await supabase
-        .from('contacts')
-        .select('count')
-        .limit(1);
+      console.log('Attempting to submit to Supabase...');
 
-      if (testError) {
-        console.error('Supabase connection test failed:', testError);
-        throw new Error(`Connection test failed: ${testError.message}`);
-      }
-
-      console.log('Supabase connection test successful, submitting form...');
-
-      // Submit the form data
+      // Submit the form data directly without connection test
+      // The contacts table has RLS policy that allows anonymous inserts
       const { data, error } = await supabase
         .from('contacts')
         .insert([
@@ -124,7 +113,17 @@ const ContactPage = () => {
 
       if (error) {
         console.error('Supabase submission error:', error);
-        throw new Error(`Submission failed: ${error.message}`);
+        
+        // Handle specific error types
+        if (error.code === 'PGRST301') {
+          throw new Error('Database connection issue. Please try again later.');
+        } else if (error.code === '42501') {
+          throw new Error('Permission denied. Please contact support.');
+        } else if (error.message.includes('violates row-level security')) {
+          throw new Error('Security policy violation. Please contact support.');
+        } else {
+          throw new Error(`Submission failed: ${error.message}`);
+        }
       }
 
       console.log('Message sent via Supabase successfully:', data);
@@ -132,14 +131,19 @@ const ContactPage = () => {
     } catch (error: any) {
       console.error('Supabase operation failed:', error);
       
-      // Check if it's a network error
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Unable to connect to database. Please check your internet connection or try again later.');
+      // Handle network errors
+      if (error.name === 'TypeError' && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+        throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
       }
       
-      // Check if it's a CORS error
+      // Handle CORS errors
       if (error.message.includes('CORS')) {
-        throw new Error('Connection blocked by browser security. Please contact support.');
+        throw new Error('Connection blocked by browser security. Please try again or contact support.');
+      }
+
+      // Handle timeout errors
+      if (error.name === 'AbortError' || error.message.includes('timeout')) {
+        throw new Error('Request timed out. Please try again.');
       }
       
       // Re-throw with original message for other errors
