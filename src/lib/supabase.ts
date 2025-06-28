@@ -16,7 +16,20 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true
-    }
+    },
+    global: {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+    db: {
+      schema: 'public',
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
   }
 );
 
@@ -26,6 +39,27 @@ export const isSupabaseConfigured = () => {
          supabaseAnonKey && 
          !supabaseUrl.includes('placeholder') && 
          !supabaseAnonKey.includes('placeholder');
+};
+
+// Helper function to test Supabase connection
+export const testSupabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('newsletter_subscriptions')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('Supabase connection test failed:', error);
+      return false;
+    }
+    
+    console.log('Supabase connection test successful');
+    return true;
+  } catch (error) {
+    console.error('Supabase connection test error:', error);
+    return false;
+  }
 };
 
 // Database types
@@ -125,4 +159,15 @@ export interface Contact {
   email: string;
   message: string;
   created_at: string;
+}
+
+export interface NewsletterSubscription {
+  id: string;
+  email: string;
+  user_id?: string;
+  categories: string[];
+  frequency: 'daily' | 'weekly' | 'monthly';
+  is_active: boolean;
+  subscribed_at: string;
+  unsubscribed_at?: string;
 }

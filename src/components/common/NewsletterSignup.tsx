@@ -26,6 +26,18 @@ const NewsletterSignup: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // Test Supabase connection first
+      const { data: testData, error: testError } = await supabase
+        .from('newsletter_subscriptions')
+        .select('count')
+        .limit(1);
+
+      if (testError) {
+        console.error('Supabase connection test failed:', testError);
+        throw new Error(`Database connection failed: ${testError.message}`);
+      }
+
+      // Proceed with the actual insert
       const { error } = await supabase
         .from('newsletter_subscriptions')
         .insert([{ email: email.trim() }]);
@@ -34,7 +46,8 @@ const NewsletterSignup: React.FC = () => {
         if (error.code === '23505') { // Unique constraint violation
           toast.error('This email is already subscribed!');
         } else {
-          throw error;
+          console.error('Database insert error:', error);
+          throw new Error(`Subscription failed: ${error.message}`);
         }
       } else {
         setIsSubscribed(true);
@@ -43,7 +56,17 @@ const NewsletterSignup: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Newsletter signup error:', error);
-      toast.error('Failed to subscribe. Please try again.');
+      
+      // Provide more specific error messages based on the error type
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        toast.error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+      } else if (error.message.includes('CORS')) {
+        toast.error('Configuration error: Please contact support if this issue persists.');
+      } else if (error.message.includes('Database connection failed')) {
+        toast.error('Database connection error: Please try again in a moment.');
+      } else {
+        toast.error(error.message || 'Failed to subscribe. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
