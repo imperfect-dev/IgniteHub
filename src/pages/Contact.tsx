@@ -89,29 +89,62 @@ const ContactPage = () => {
     }
   };
 
-  // Submit to Supabase
+  // Submit to Supabase with enhanced error handling
   const submitToSupabase = async () => {
     if (!supabaseConfigured) {
       throw new Error('Supabase not configured');
     }
 
-    const { error } = await supabase
-      .from('contacts')
-      .insert([
-        {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          message: formData.message.trim()
-        }
-      ]);
+    try {
+      // Test connection first
+      console.log('Testing Supabase connection...');
+      const { data: testData, error: testError } = await supabase
+        .from('contacts')
+        .select('count')
+        .limit(1);
 
-    if (error) {
-      console.error('Supabase submission error:', error);
+      if (testError) {
+        console.error('Supabase connection test failed:', testError);
+        throw new Error(`Connection test failed: ${testError.message}`);
+      }
+
+      console.log('Supabase connection test successful, submitting form...');
+
+      // Submit the form data
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert([
+          {
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            message: formData.message.trim()
+          }
+        ])
+        .select();
+
+      if (error) {
+        console.error('Supabase submission error:', error);
+        throw new Error(`Submission failed: ${error.message}`);
+      }
+
+      console.log('Message sent via Supabase successfully:', data);
+      return true;
+    } catch (error: any) {
+      console.error('Supabase operation failed:', error);
+      
+      // Check if it's a network error
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Unable to connect to database. Please check your internet connection or try again later.');
+      }
+      
+      // Check if it's a CORS error
+      if (error.message.includes('CORS')) {
+        throw new Error('Connection blocked by browser security. Please contact support.');
+      }
+      
+      // Re-throw with original message for other errors
       throw error;
     }
-
-    console.log('Message sent via Supabase');
-    return true;
   };
 
   // Handle form submission
@@ -139,8 +172,13 @@ const ContactPage = () => {
           setFormData({ name: '', email: '', message: '' });
           setSubmitStatus('success');
           return;
-        } catch (supabaseError) {
+        } catch (supabaseError: any) {
           console.warn('Supabase submission failed, falling back to FormSubmit:', supabaseError);
+          
+          // Set a more user-friendly error message for Supabase failures
+          const fallbackMessage = supabaseError.message || 'Database connection failed';
+          console.log(`Falling back to FormSubmit due to: ${fallbackMessage}`);
+          
           // Continue to FormSubmit fallback
         }
       }

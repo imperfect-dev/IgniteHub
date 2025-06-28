@@ -35,15 +35,24 @@ export const supabase = createClient(
 
 // Helper function to check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return supabaseUrl && 
+  const isConfigured = supabaseUrl && 
          supabaseAnonKey && 
          !supabaseUrl.includes('placeholder') && 
          !supabaseAnonKey.includes('placeholder') &&
          supabaseUrl.startsWith('https://') &&
          supabaseUrl.includes('.supabase.co');
+  
+  console.log('Supabase configuration check:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    urlValid: supabaseUrl?.startsWith('https://') && supabaseUrl?.includes('.supabase.co'),
+    isConfigured
+  });
+  
+  return isConfigured;
 };
 
-// Helper function to test Supabase connection
+// Helper function to test Supabase connection with enhanced error handling
 export const testSupabaseConnection = async () => {
   try {
     // Only test if properly configured
@@ -52,20 +61,40 @@ export const testSupabaseConnection = async () => {
       return false;
     }
 
+    console.log('Testing Supabase connection to:', supabaseUrl);
+
+    // Test with a simple query that should work regardless of RLS
     const { data, error } = await supabase
       .from('contacts')
       .select('count')
       .limit(1);
     
     if (error) {
-      console.error('Supabase connection test failed:', error);
+      console.error('Supabase connection test failed:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       return false;
     }
     
-    console.log('Supabase connection test successful');
+    console.log('Supabase connection test successful:', data);
     return true;
-  } catch (error) {
-    console.error('Supabase connection test error:', error);
+  } catch (error: any) {
+    console.error('Supabase connection test error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Check for specific error types
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      console.error('Network error: Unable to reach Supabase. Check internet connection and URL.');
+    } else if (error.message.includes('CORS')) {
+      console.error('CORS error: Check Supabase project CORS settings.');
+    }
+    
     return false;
   }
 };
