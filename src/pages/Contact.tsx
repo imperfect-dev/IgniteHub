@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, MessageSquare, Send, CheckCircle, AlertCircle, Database, Wifi, WifiOff } from 'lucide-react';
+import { Mail, MessageSquare, Send, CheckCircle, AlertCircle, Database, Wifi, WifiOff, Settings } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 import PageHeader from '../components/layout/PageHeader';
@@ -30,6 +30,7 @@ const ContactPage = () => {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'fallback' | 'failed'>('checking');
+  const [connectionError, setConnectionError] = useState<string>('');
 
   // Check Supabase connection on component mount with improved error handling
   useEffect(() => {
@@ -37,6 +38,7 @@ const ContactPage = () => {
       if (!isSupabaseConfigured()) {
         console.log('Supabase not configured, using fallback service');
         setConnectionStatus('fallback');
+        setConnectionError('Supabase configuration not found');
         return;
       }
 
@@ -45,39 +47,57 @@ const ContactPage = () => {
         
         // Create a timeout promise to prevent hanging
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Connection timeout')), 10000);
+          setTimeout(() => reject(new Error('Connection timeout after 8 seconds')), 8000);
         });
 
-        // Test connection with timeout
+        // Test connection with timeout - use a simpler query
         const connectionPromise = supabase
           .from('contacts')
-          .select('count')
-          .limit(1);
+          .select('id')
+          .limit(1)
+          .maybeSingle();
 
-        const { error } = await Promise.race([connectionPromise, timeoutPromise]) as any;
+        const result = await Promise.race([connectionPromise, timeoutPromise]) as any;
         
-        if (error) {
-          console.warn('Supabase connection test failed:', error.message);
+        if (result.error) {
+          console.warn('Supabase connection test failed:', result.error);
+          
+          // Handle specific Supabase errors
+          if (result.error.message?.includes('CORS')) {
+            setConnectionError('CORS policy error - development URL needs to be added to Supabase settings');
+          } else if (result.error.message?.includes('relation') && result.error.message?.includes('does not exist')) {
+            setConnectionError('Database table not found - contacts table may not exist');
+          } else if (result.error.code === '42501') {
+            setConnectionError('Database permission error - check RLS policies');
+          } else {
+            setConnectionError(`Database error: ${result.error.message}`);
+          }
+          
           setConnectionStatus('fallback');
         } else {
           console.log('Supabase connection successful');
           setConnectionStatus('connected');
+          setConnectionError('');
         }
       } catch (error: any) {
-        console.warn('Supabase connection error:', error.message || error);
+        console.warn('Supabase connection error:', error);
         
-        // Handle specific error types
-        if (error.message?.includes('Failed to fetch') || 
-            error.message?.includes('CORS') ||
-            error.message?.includes('Network') ||
-            error.message?.includes('timeout') ||
-            error.name === 'TypeError') {
-          console.log('Network/CORS issue detected, using fallback email service');
-          setConnectionStatus('fallback');
+        // Handle specific error types with more detailed messages
+        if (error.message?.includes('Failed to fetch')) {
+          setConnectionError('Network error - unable to reach Supabase (likely CORS issue)');
+        } else if (error.message?.includes('CORS')) {
+          setConnectionError('CORS policy error - add your development URL to Supabase settings');
+        } else if (error.message?.includes('Network')) {
+          setConnectionError('Network connectivity issue');
+        } else if (error.message?.includes('timeout')) {
+          setConnectionError('Connection timeout - Supabase may be unreachable');
+        } else if (error.name === 'TypeError') {
+          setConnectionError('Network request failed - check internet connection and Supabase URL');
         } else {
-          console.log('Unknown connection error, using fallback email service');
-          setConnectionStatus('fallback');
+          setConnectionError(`Connection error: ${error.message || 'Unknown error'}`);
         }
+        
+        setConnectionStatus('fallback');
       }
     };
 
@@ -154,7 +174,7 @@ const ContactPage = () => {
 
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database request timeout')), 15000);
+        setTimeout(() => reject(new Error('Database request timeout after 10 seconds')), 10000);
       });
 
       // Submit with timeout
@@ -169,37 +189,43 @@ const ContactPage = () => {
         ])
         .select();
 
-      const { data, error } = await Promise.race([submitPromise, timeoutPromise]) as any;
+      const result = await Promise.race([submitPromise, timeoutPromise]) as any;
 
-      if (error) {
-        console.error('Supabase submission error:', error);
+      if (result.error) {
+        console.error('Supabase submission error:', result.error);
         
-        // Handle specific Supabase errors
-        if (error.code === 'PGRST301') {
+        // Handle specific Supabase errors with more detail
+        if (result.error.code === 'PGRST301') {
           throw new Error('Database temporarily unavailable');
-        } else if (error.code === '42501') {
-          throw new Error('Database permission error');
-        } else if (error.message.includes('violates row-level security')) {
-          throw new Error('Database security policy error');
-        } else if (error.message.includes('relation') && error.message.includes('does not exist')) {
-          throw new Error('Database table not found');
+        } else if (result.error.code === '42501') {
+          throw new Error('Database permission error - check RLS policies');
+        } else if (result.error.message?.includes('violates row-level security')) {
+          throw new Error('Database security policy prevents insertion - check RLS policies');
+        } else if (result.error.message?.includes('relation') && result.error.message?.includes('does not exist')) {
+          throw new Error('Database table not found - contacts table may not exist');
+        } else if (result.error.message?.includes('CORS')) {
+          throw new Error('CORS policy error - add development URL to Supabase settings');
         } else {
-          throw new Error(`Database error: ${error.message}`);
+          throw new Error(`Database error: ${result.error.message}`);
         }
       }
 
-      console.log('Supabase submission successful:', data);
-      return { success: true, data };
+      console.log('Supabase submission successful:', result.data);
+      return { success: true, data: result.data };
     } catch (error: any) {
       console.error('Supabase operation failed:', error);
       
-      // Handle network and connection errors
-      if (error.message?.includes('Failed to fetch') || 
-          error.message?.includes('CORS') ||
-          error.message?.includes('Network') ||
-          error.message?.includes('timeout') ||
-          error.name === 'TypeError') {
-        throw new Error('Unable to connect to database - using email fallback');
+      // Handle network and connection errors with more specific messages
+      if (error.message?.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to database - network error (likely CORS issue)');
+      } else if (error.message?.includes('CORS')) {
+        throw new Error('CORS policy error - add your development URL to Supabase settings');
+      } else if (error.message?.includes('Network')) {
+        throw new Error('Network connectivity issue - check internet connection');
+      } else if (error.message?.includes('timeout')) {
+        throw new Error('Database request timeout - Supabase may be unreachable');
+      } else if (error.name === 'TypeError') {
+        throw new Error('Network request failed - check Supabase configuration');
       }
       
       // Re-throw with original message for other errors
@@ -370,17 +396,46 @@ const ContactPage = () => {
               </div>
             </div>
 
-            {/* CORS Help Info */}
-            {connectionStatus === 'fallback' && (
+            {/* Enhanced Error Info */}
+            {connectionStatus === 'fallback' && connectionError && (
               <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                 <div className="flex items-start">
-                  <WifiOff className="text-amber-600 mr-3 mt-0.5" size={20} />
-                  <div>
+                  <WifiOff className="text-amber-600 mr-3 mt-0.5 flex-shrink-0" size={20} />
+                  <div className="flex-1">
                     <p className="text-amber-800 font-medium text-sm">Database Connection Issue</p>
                     <p className="text-amber-700 text-xs mt-1">
-                      The database connection failed, likely due to CORS settings. Your messages will still be sent via email service. 
-                      To fix this, add your development URL to the Supabase project's allowed origins.
+                      <strong>Error:</strong> {connectionError}
                     </p>
+                    <div className="mt-2 text-amber-700 text-xs">
+                      <p><strong>To fix this:</strong></p>
+                      <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>Add your development URL to Supabase project settings under Authentication → URL Configuration</li>
+                        <li>Check that your Supabase URL and API key are correct in the .env file</li>
+                        <li>Verify the contacts table exists in your Supabase database</li>
+                        <li>Ensure RLS policies allow anonymous inserts on the contacts table</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CORS Help Info */}
+            {connectionError.includes('CORS') && (
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start">
+                  <Settings className="text-red-600 mr-3 mt-0.5 flex-shrink-0" size={20} />
+                  <div className="flex-1">
+                    <p className="text-red-800 font-medium text-sm">CORS Configuration Required</p>
+                    <div className="text-red-700 text-xs mt-1">
+                      <p>To fix the CORS error:</p>
+                      <ol className="list-decimal list-inside mt-1 space-y-1">
+                        <li>Go to your Supabase project dashboard</li>
+                        <li>Navigate to Authentication → URL Configuration</li>
+                        <li>Add your development URL (e.g., http://localhost:8080) to the "Site URL" field</li>
+                        <li>Restart your development server</li>
+                      </ol>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -412,13 +467,13 @@ const ContactPage = () => {
               {submitStatus === 'error' && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-center">
-                    <AlertCircle className="text-red-600 mr-3" size={20} />
+                    <AlertCircle className="text-red-600 mr-3 flex-shrink-0" size={20} />
                     <div>
                       <p className="text-red-700 font-medium">
                         {errorMessage || 'Something went wrong. Please try again.'}
                       </p>
                       <p className="text-red-600 text-sm mt-1">
-                        If the problem persists, please email us directly.
+                        If the problem persists, please email us directly at dharshansondi.dev@gmail.com
                       </p>
                     </div>
                   </div>
@@ -504,6 +559,11 @@ const ContactPage = () => {
 
                 <p className="text-xs text-gray-500 text-center">
                   By submitting this form, you agree to receive a response via email.
+                  {connectionStatus === 'fallback' && (
+                    <span className="block mt-1 text-amber-600">
+                      Currently using email service due to database connection issue.
+                    </span>
+                  )}
                 </p>
               </form>
             </div>
