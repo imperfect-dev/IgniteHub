@@ -80,55 +80,63 @@ const ContactPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Check if Supabase is configured
-      if (!supabaseConfigured) {
-        // Fallback to FormSubmit service
+      // Check if Supabase is configured and working
+      if (supabaseConfigured) {
+        try {
+          const { error } = await supabase
+            .from('contacts')
+            .insert([
+              {
+                name: formData.name.trim(),
+                email: formData.email.trim(),
+                message: formData.message.trim()
+              }
+            ]);
+
+          if (error) {
+            console.error('Supabase error:', error);
+            throw new Error('Supabase submission failed');
+          }
+
+          // Success - reset form and show success message
+          setFormData({ name: '', email: '', message: '' });
+          setSubmitStatus('success');
+          return;
+        } catch (supabaseError) {
+          console.warn('Supabase failed, falling back to FormSubmit:', supabaseError);
+          // Fall through to FormSubmit fallback
+        }
+      }
+
+      // Fallback to FormSubmit service
+      try {
         const formSubmitData = new FormData();
         formSubmitData.append('name', formData.name.trim());
         formSubmitData.append('email', formData.email.trim());
         formSubmitData.append('message', formData.message.trim());
         formSubmitData.append('_subject', 'New message from IgniteHub!');
         formSubmitData.append('_captcha', 'false');
-        formSubmitData.append('_next', `${window.location.origin}/contact?success=true`);
+        formSubmitData.append('_template', 'table');
 
         const response = await fetch('https://formsubmit.co/dharshansondi.dev@gmail.com', {
           method: 'POST',
-          body: formSubmitData
+          body: formSubmitData,
+          mode: 'no-cors' // This prevents CORS issues
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to send message via FormSubmit');
-        }
-
+        // With no-cors mode, we can't check response status, so assume success
         // Success - reset form and show success message
         setFormData({ name: '', email: '', message: '' });
         setSubmitStatus('success');
         return;
+      } catch (formSubmitError) {
+        console.error('FormSubmit also failed:', formSubmitError);
+        throw new Error('Both Supabase and FormSubmit services are unavailable. Please try again later or contact us directly at dharshansondi.dev@gmail.com');
       }
-
-      // Use Supabase if configured
-      const { error } = await supabase
-        .from('contacts')
-        .insert([
-          {
-            name: formData.name.trim(),
-            email: formData.email.trim(),
-            message: formData.message.trim()
-          }
-        ]);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw new Error(error.message || 'Failed to submit form');
-      }
-
-      // Success - reset form and show success message
-      setFormData({ name: '', email: '', message: '' });
-      setSubmitStatus('success');
       
     } catch (error: any) {
       console.error('Error submitting contact form:', error);
-      setErrorMessage(error.message || 'Failed to send message. Please try again.');
+      setErrorMessage(error.message || 'Failed to send message. Please try again or contact us directly at dharshansondi.dev@gmail.com');
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
@@ -192,14 +200,27 @@ const ContactPage = () => {
               </p>
             </div>
 
+            {/* Direct Contact Info */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <Mail className="text-blue-600 mr-3" size={20} />
+                <div>
+                  <p className="text-blue-800 font-medium">Direct Email</p>
+                  <p className="text-blue-700 text-sm">
+                    You can also reach us directly at: <strong>dharshansondi.dev@gmail.com</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Configuration Info */}
             {!supabaseConfigured && (
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-center">
-                  <AlertCircle className="text-blue-600 mr-3" size={20} />
+                  <AlertCircle className="text-yellow-600 mr-3" size={20} />
                   <div>
-                    <p className="text-blue-800 font-medium">Using Fallback Service</p>
-                    <p className="text-blue-700 text-sm">
+                    <p className="text-yellow-800 font-medium">Using Fallback Service</p>
+                    <p className="text-yellow-700 text-sm">
                       Contact form will use FormSubmit service. Messages will be sent directly to email.
                     </p>
                   </div>
@@ -229,9 +250,11 @@ const ContactPage = () => {
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-center">
                     <AlertCircle className="text-red-600 mr-3" size={20} />
-                    <p className="text-red-700 font-medium">
-                      {errorMessage || 'Something went wrong. Please try again.'}
-                    </p>
+                    <div>
+                      <p className="text-red-700 font-medium">
+                        {errorMessage || 'Something went wrong. Please try again.'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

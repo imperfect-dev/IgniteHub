@@ -38,12 +38,20 @@ export const isSupabaseConfigured = () => {
   return supabaseUrl && 
          supabaseAnonKey && 
          !supabaseUrl.includes('placeholder') && 
-         !supabaseAnonKey.includes('placeholder');
+         !supabaseAnonKey.includes('placeholder') &&
+         supabaseUrl.startsWith('https://') &&
+         supabaseUrl.includes('.supabase.co');
 };
 
 // Helper function to test Supabase connection
 export const testSupabaseConnection = async () => {
   try {
+    // Only test if properly configured
+    if (!isSupabaseConfigured()) {
+      console.log('Supabase not configured, skipping connection test');
+      return false;
+    }
+
     const { data, error } = await supabase
       .from('contacts')
       .select('count')
