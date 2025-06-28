@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, MessageSquare, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, MessageSquare, Send, CheckCircle, AlertCircle, Database, Wifi } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 import PageHeader from '../components/layout/PageHeader';
@@ -29,9 +29,35 @@ const ContactPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'fallback'>('checking');
 
-  // Check if Supabase is configured
-  const supabaseConfigured = isSupabaseConfigured();
+  // Check Supabase connection on component mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      if (!isSupabaseConfigured()) {
+        console.log('Supabase not configured, using fallback service');
+        setConnectionStatus('fallback');
+        return;
+      }
+
+      try {
+        // Simple connection test
+        const { error } = await supabase.from('contacts').select('count').limit(1);
+        if (error) {
+          console.warn('Supabase connection test failed:', error.message);
+          setConnectionStatus('fallback');
+        } else {
+          console.log('Supabase connection successful');
+          setConnectionStatus('connected');
+        }
+      } catch (error) {
+        console.warn('Supabase connection error:', error);
+        setConnectionStatus('fallback');
+      }
+    };
+
+    checkConnection();
+  }, []);
 
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -60,46 +86,47 @@ const ContactPage = () => {
       setErrorMessage('Message is required');
       return false;
     }
+    if (formData.message.trim().length < 10) {
+      setErrorMessage('Message must be at least 10 characters long');
+      return false;
+    }
     return true;
   };
 
-  // Submit to FormSubmit as fallback
+  // Submit to FormSubmit service
   const submitToFormSubmit = async () => {
     try {
+      console.log('Submitting via FormSubmit service...');
+      
       const formSubmitData = new FormData();
       formSubmitData.append('name', formData.name.trim());
       formSubmitData.append('email', formData.email.trim());
       formSubmitData.append('message', formData.message.trim());
-      formSubmitData.append('_subject', 'New message from IgniteHub!');
+      formSubmitData.append('_subject', 'New message from IgniteHub Contact Form');
       formSubmitData.append('_captcha', 'false');
       formSubmitData.append('_template', 'table');
+      formSubmitData.append('_autoresponse', 'Thank you for contacting IgniteHub! We will get back to you soon.');
 
       const response = await fetch('https://formsubmit.co/dharshansondi.dev@gmail.com', {
         method: 'POST',
         body: formSubmitData,
-        mode: 'no-cors' // This prevents CORS issues
+        mode: 'no-cors' // Prevents CORS issues but we can't read response
       });
 
-      // With no-cors mode, we can't check response status, so assume success
-      console.log('Message sent via FormSubmit fallback service');
-      return true;
+      // With no-cors mode, we assume success if no error is thrown
+      console.log('FormSubmit submission completed');
+      return { success: true };
     } catch (error) {
       console.error('FormSubmit submission failed:', error);
-      throw error;
+      throw new Error('Failed to send message via email service');
     }
   };
 
-  // Submit to Supabase with improved error handling
+  // Submit to Supabase database
   const submitToSupabase = async () => {
-    if (!supabaseConfigured) {
-      throw new Error('Supabase not configured');
-    }
-
     try {
-      console.log('Attempting to submit to Supabase...');
+      console.log('Submitting to Supabase database...');
 
-      // Submit the form data directly without connection test
-      // The contacts table has RLS policy that allows anonymous inserts
       const { data, error } = await supabase
         .from('contacts')
         .insert([
@@ -114,36 +141,32 @@ const ContactPage = () => {
       if (error) {
         console.error('Supabase submission error:', error);
         
-        // Handle specific error types
+        // Handle specific Supabase errors
         if (error.code === 'PGRST301') {
-          throw new Error('Database connection issue. Please try again later.');
+          throw new Error('Database temporarily unavailable');
         } else if (error.code === '42501') {
-          throw new Error('Permission denied. Please contact support.');
+          throw new Error('Database permission error');
         } else if (error.message.includes('violates row-level security')) {
-          throw new Error('Security policy violation. Please contact support.');
+          throw new Error('Database security policy error');
+        } else if (error.message.includes('relation') && error.message.includes('does not exist')) {
+          throw new Error('Database table not found');
         } else {
-          throw new Error(`Submission failed: ${error.message}`);
+          throw new Error(`Database error: ${error.message}`);
         }
       }
 
-      console.log('Message sent via Supabase successfully:', data);
-      return true;
+      console.log('Supabase submission successful:', data);
+      return { success: true, data };
     } catch (error: any) {
       console.error('Supabase operation failed:', error);
       
-      // Handle network errors
-      if (error.name === 'TypeError' && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
-        throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
-      }
-      
-      // Handle CORS errors
-      if (error.message.includes('CORS')) {
-        throw new Error('Connection blocked by browser security. Please try again or contact support.');
-      }
-
-      // Handle timeout errors
-      if (error.name === 'AbortError' || error.message.includes('timeout')) {
-        throw new Error('Request timed out. Please try again.');
+      // Handle network and connection errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Unable to connect to database');
+      } else if (error.message.includes('CORS')) {
+        throw new Error('Database connection blocked');
+      } else if (error.name === 'AbortError' || error.message.includes('timeout')) {
+        throw new Error('Database request timed out');
       }
       
       // Re-throw with original message for other errors
@@ -168,57 +191,57 @@ const ContactPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Try Supabase first if configured
-      if (supabaseConfigured) {
+      let submissionResult = null;
+
+      // Try Supabase first if connected
+      if (connectionStatus === 'connected') {
         try {
-          await submitToSupabase();
-          // Success - reset form and show success message
-          setFormData({ name: '', email: '', message: '' });
-          setSubmitStatus('success');
-          return;
+          submissionResult = await submitToSupabase();
+          console.log('Message saved to database and will be sent via email');
         } catch (supabaseError: any) {
-          console.warn('Supabase submission failed, falling back to FormSubmit:', supabaseError);
-          
-          // Set a more user-friendly error message for Supabase failures
-          const fallbackMessage = supabaseError.message || 'Database connection failed';
-          console.log(`Falling back to FormSubmit due to: ${fallbackMessage}`);
-          
+          console.warn('Supabase submission failed, falling back to FormSubmit:', supabaseError.message);
           // Continue to FormSubmit fallback
         }
       }
 
-      // Use FormSubmit as fallback (or primary if Supabase not configured)
-      try {
-        await submitToFormSubmit();
-        // Success - reset form and show success message
+      // Use FormSubmit if Supabase failed or not available
+      if (!submissionResult) {
+        try {
+          submissionResult = await submitToFormSubmit();
+          console.log('Message sent via email service');
+        } catch (formSubmitError: any) {
+          console.error('FormSubmit submission also failed:', formSubmitError);
+          throw new Error('Unable to send message. Please try again later or contact us directly at dharshansondi.dev@gmail.com');
+        }
+      }
+
+      // Success - reset form and show success message
+      if (submissionResult?.success) {
         setFormData({ name: '', email: '', message: '' });
         setSubmitStatus('success');
-      } catch (formSubmitError) {
-        console.error('FormSubmit submission also failed:', formSubmitError);
-        throw new Error('Unable to send message at this time. Please try again later or contact us directly at dharshansondi.dev@gmail.com');
       }
       
     } catch (error: any) {
       console.error('Error submitting contact form:', error);
-      setErrorMessage(error.message || 'Failed to send message. Please try again or contact us directly at dharshansondi.dev@gmail.com');
+      setErrorMessage(error.message || 'Failed to send message. Please try again or contact us directly.');
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Clear status messages after 5 seconds
+  // Clear status messages after 7 seconds
   useEffect(() => {
     if (submitStatus !== 'idle') {
       const timer = setTimeout(() => {
         setSubmitStatus('idle');
         setErrorMessage('');
-      }, 5000);
+      }, 7000);
       return () => clearTimeout(timer);
     }
   }, [submitStatus]);
 
-  // Check for success parameter in URL
+  // Check for success parameter in URL (from FormSubmit redirect)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('success') === 'true') {
@@ -277,20 +300,42 @@ const ContactPage = () => {
               </div>
             </div>
 
-            {/* Configuration Info */}
-            {!supabaseConfigured && (
-              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-center">
-                  <AlertCircle className="text-yellow-600 mr-3" size={20} />
-                  <div>
-                    <p className="text-yellow-800 font-medium">Using Fallback Service</p>
-                    <p className="text-yellow-700 text-sm">
-                      Contact form will use FormSubmit service. Messages will be sent directly to email.
-                    </p>
-                  </div>
-                </div>
+            {/* Connection Status Info */}
+            <div className="mt-4 p-4 border rounded-lg">
+              <div className="flex items-center">
+                {connectionStatus === 'checking' && (
+                  <>
+                    <Wifi className="text-gray-500 mr-3 animate-pulse" size={20} />
+                    <div>
+                      <p className="text-gray-700 font-medium">Checking connection...</p>
+                      <p className="text-gray-600 text-sm">Testing database connectivity</p>
+                    </div>
+                  </>
+                )}
+                {connectionStatus === 'connected' && (
+                  <>
+                    <Database className="text-green-600 mr-3" size={20} />
+                    <div>
+                      <p className="text-green-800 font-medium">Database Connected</p>
+                      <p className="text-green-700 text-sm">
+                        Messages will be saved to database and sent via email
+                      </p>
+                    </div>
+                  </>
+                )}
+                {connectionStatus === 'fallback' && (
+                  <>
+                    <Mail className="text-yellow-600 mr-3" size={20} />
+                    <div>
+                      <p className="text-yellow-800 font-medium">Using Email Service</p>
+                      <p className="text-yellow-700 text-sm">
+                        Messages will be sent directly via email service
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <div>
@@ -302,9 +347,14 @@ const ContactPage = () => {
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center">
                     <CheckCircle className="text-green-600 mr-3" size={20} />
-                    <p className="text-green-700 font-medium">
-                      Thanks for reaching out! We'll be in touch soon.
-                    </p>
+                    <div>
+                      <p className="text-green-700 font-medium">
+                        Message sent successfully!
+                      </p>
+                      <p className="text-green-600 text-sm">
+                        Thank you for reaching out. We'll get back to you soon!
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -317,6 +367,9 @@ const ContactPage = () => {
                     <div>
                       <p className="text-red-700 font-medium">
                         {errorMessage || 'Something went wrong. Please try again.'}
+                      </p>
+                      <p className="text-red-600 text-sm mt-1">
+                        If the problem persists, please email us directly.
                       </p>
                     </div>
                   </div>
@@ -338,6 +391,7 @@ const ContactPage = () => {
                     disabled={isSubmitting}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Your name"
+                    maxLength={100}
                   />
                 </div>
 
@@ -355,6 +409,7 @@ const ContactPage = () => {
                     disabled={isSubmitting}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="your.email@example.com"
+                    maxLength={255}
                   />
                 </div>
 
@@ -372,13 +427,18 @@ const ContactPage = () => {
                     rows={6}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Tell us about your idea, suggestion, or how we can help..."
+                    maxLength={2000}
+                    minLength={10}
                   />
+                  <div className="text-right text-sm text-gray-500 mt-1">
+                    {formData.message.length}/2000 characters
+                  </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  disabled={isSubmitting || !formData.name.trim() || !formData.email.trim() || !formData.message.trim()}
+                  className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:from-purple-600 disabled:hover:to-pink-600"
                 >
                   {isSubmitting ? (
                     <>
@@ -392,6 +452,10 @@ const ContactPage = () => {
                     </>
                   )}
                 </button>
+
+                <p className="text-xs text-gray-500 text-center">
+                  By submitting this form, you agree to receive a response via email.
+                </p>
               </form>
             </div>
           </div>

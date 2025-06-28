@@ -5,7 +5,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Check if environment variables are properly set
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder') || supabaseAnonKey.includes('placeholder')) {
-  console.warn('Supabase environment variables not properly configured. Some features may not work.');
+  console.warn('Supabase environment variables not properly configured. Contact form will use fallback email service.');
 }
 
 export const supabase = createClient(
@@ -42,13 +42,6 @@ export const isSupabaseConfigured = () => {
          supabaseUrl.startsWith('https://') &&
          supabaseUrl.includes('.supabase.co');
   
-  console.log('Supabase configuration check:', {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseAnonKey,
-    urlValid: supabaseUrl?.startsWith('https://') && supabaseUrl?.includes('.supabase.co'),
-    isConfigured
-  });
-  
   return isConfigured;
 };
 
@@ -61,7 +54,7 @@ export const testSupabaseConnection = async () => {
       return false;
     }
 
-    console.log('Testing Supabase connection to:', supabaseUrl);
+    console.log('Testing Supabase connection...');
 
     // Test with a simple query that should work regardless of RLS
     const { data, error } = await supabase
@@ -79,13 +72,12 @@ export const testSupabaseConnection = async () => {
       return false;
     }
     
-    console.log('Supabase connection test successful:', data);
+    console.log('Supabase connection test successful');
     return true;
   } catch (error: any) {
     console.error('Supabase connection test error:', {
       name: error.name,
-      message: error.message,
-      stack: error.stack
+      message: error.message
     });
     
     // Check for specific error types
