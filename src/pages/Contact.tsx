@@ -63,6 +63,57 @@ const ContactPage = () => {
     return true;
   };
 
+  // Submit to FormSubmit as fallback
+  const submitToFormSubmit = async () => {
+    try {
+      const formSubmitData = new FormData();
+      formSubmitData.append('name', formData.name.trim());
+      formSubmitData.append('email', formData.email.trim());
+      formSubmitData.append('message', formData.message.trim());
+      formSubmitData.append('_subject', 'New message from IgniteHub!');
+      formSubmitData.append('_captcha', 'false');
+      formSubmitData.append('_template', 'table');
+
+      const response = await fetch('https://formsubmit.co/dharshansondi.dev@gmail.com', {
+        method: 'POST',
+        body: formSubmitData,
+        mode: 'no-cors' // This prevents CORS issues
+      });
+
+      // With no-cors mode, we can't check response status, so assume success
+      console.log('Message sent via FormSubmit fallback service');
+      return true;
+    } catch (error) {
+      console.error('FormSubmit submission failed:', error);
+      throw error;
+    }
+  };
+
+  // Submit to Supabase
+  const submitToSupabase = async () => {
+    if (!supabaseConfigured) {
+      throw new Error('Supabase not configured');
+    }
+
+    const { error } = await supabase
+      .from('contacts')
+      .insert([
+        {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          message: formData.message.trim()
+        }
+      ]);
+
+    if (error) {
+      console.error('Supabase submission error:', error);
+      throw error;
+    }
+
+    console.log('Message sent via Supabase');
+    return true;
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,58 +131,29 @@ const ContactPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Check if Supabase is configured and working
+      // Try Supabase first if configured
       if (supabaseConfigured) {
         try {
-          const { error } = await supabase
-            .from('contacts')
-            .insert([
-              {
-                name: formData.name.trim(),
-                email: formData.email.trim(),
-                message: formData.message.trim()
-              }
-            ]);
-
-          if (error) {
-            console.error('Supabase error:', error);
-            throw new Error('Supabase submission failed');
-          }
-
+          await submitToSupabase();
           // Success - reset form and show success message
           setFormData({ name: '', email: '', message: '' });
           setSubmitStatus('success');
           return;
         } catch (supabaseError) {
-          console.warn('Supabase failed, falling back to FormSubmit:', supabaseError);
-          // Fall through to FormSubmit fallback
+          console.warn('Supabase submission failed, falling back to FormSubmit:', supabaseError);
+          // Continue to FormSubmit fallback
         }
       }
 
-      // Fallback to FormSubmit service
+      // Use FormSubmit as fallback (or primary if Supabase not configured)
       try {
-        const formSubmitData = new FormData();
-        formSubmitData.append('name', formData.name.trim());
-        formSubmitData.append('email', formData.email.trim());
-        formSubmitData.append('message', formData.message.trim());
-        formSubmitData.append('_subject', 'New message from IgniteHub!');
-        formSubmitData.append('_captcha', 'false');
-        formSubmitData.append('_template', 'table');
-
-        const response = await fetch('https://formsubmit.co/dharshansondi.dev@gmail.com', {
-          method: 'POST',
-          body: formSubmitData,
-          mode: 'no-cors' // This prevents CORS issues
-        });
-
-        // With no-cors mode, we can't check response status, so assume success
+        await submitToFormSubmit();
         // Success - reset form and show success message
         setFormData({ name: '', email: '', message: '' });
         setSubmitStatus('success');
-        return;
       } catch (formSubmitError) {
-        console.error('FormSubmit also failed:', formSubmitError);
-        throw new Error('Both Supabase and FormSubmit services are unavailable. Please try again later or contact us directly at dharshansondi.dev@gmail.com');
+        console.error('FormSubmit submission also failed:', formSubmitError);
+        throw new Error('Unable to send message at this time. Please try again later or contact us directly at dharshansondi.dev@gmail.com');
       }
       
     } catch (error: any) {
