@@ -45,7 +45,7 @@ export const isSupabaseConfigured = () => {
 export const testSupabaseConnection = async () => {
   try {
     const { data, error } = await supabase
-      .from('newsletter_subscriptions')
+      .from('contacts')
       .select('count')
       .limit(1);
     
@@ -159,15 +159,4 @@ export interface Contact {
   email: string;
   message: string;
   created_at: string;
-}
-
-export interface NewsletterSubscription {
-  id: string;
-  email: string;
-  user_id?: string;
-  categories: string[];
-  frequency: 'daily' | 'weekly' | 'monthly';
-  is_active: boolean;
-  subscribed_at: string;
-  unsubscribed_at?: string;
 }

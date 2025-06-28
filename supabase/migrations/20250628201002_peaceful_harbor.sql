@@ -6,7 +6,6 @@
     - `user_collections` - Custom resource collections
     - `collection_items` - Items in collections
     - `user_notifications` - Notification system
-    - `newsletter_subscriptions` - Email subscriptions
 
   2. Security
     - Enable RLS on all tables
@@ -60,24 +59,11 @@ CREATE TABLE IF NOT EXISTS user_notifications (
   created_at timestamptz DEFAULT now()
 );
 
--- Newsletter Subscriptions
-CREATE TABLE IF NOT EXISTS newsletter_subscriptions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text UNIQUE NOT NULL,
-  user_id uuid REFERENCES user_profiles(id) ON DELETE CASCADE,
-  categories text[] DEFAULT '{}',
-  frequency text DEFAULT 'weekly' CHECK (frequency IN ('daily', 'weekly', 'monthly')),
-  is_active boolean DEFAULT true,
-  subscribed_at timestamptz DEFAULT now(),
-  unsubscribed_at timestamptz
-);
-
 -- Enable RLS
 ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_collections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE collection_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE newsletter_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- User Achievements Policies
 CREATE POLICY "Users can read own achievements"
@@ -164,22 +150,6 @@ CREATE POLICY "System can insert notifications"
   TO authenticated
   WITH CHECK (true);
 
--- Newsletter Subscriptions Policies
-CREATE POLICY "Users can read own subscriptions"
-  ON newsletter_subscriptions FOR SELECT
-  TO authenticated
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Anyone can subscribe to newsletter"
-  ON newsletter_subscriptions FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (true);
-
-CREATE POLICY "Users can update own subscriptions"
-  ON newsletter_subscriptions FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = user_id);
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_achievements_type ON user_achievements(achievement_type);
@@ -189,7 +159,6 @@ CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_item
 CREATE INDEX IF NOT EXISTS idx_collection_items_resource_id ON collection_items(resource_id);
 CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id ON user_notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_notifications_read ON user_notifications(is_read);
-CREATE INDEX IF NOT EXISTS idx_newsletter_subscriptions_email ON newsletter_subscriptions(email);
 
 -- Function to update collection item counts
 CREATE OR REPLACE FUNCTION update_collection_item_count()
