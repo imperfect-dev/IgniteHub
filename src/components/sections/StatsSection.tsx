@@ -1,6 +1,43 @@
 import React from 'react';
 import { categories } from '../../data/resources';
 import { Users, BookOpen, Globe, Zap } from 'lucide-react';
+import { useCountUp } from '../../hooks/useCountUp';
+
+interface StatItemProps {
+  icon: React.ReactNode;
+  value: number;
+  label: string;
+  description: string;
+  delay?: number;
+}
+
+const StatItem: React.FC<StatItemProps> = ({ icon, value, label, description, delay = 0 }) => {
+  const { count, elementRef } = useCountUp({
+    end: value,
+    duration: 2500,
+    delay
+  });
+
+  return (
+    <div
+      ref={elementRef}
+      className="text-center p-6 rounded-xl bg-gray-50 hover:bg-gray-100 transition-all duration-300 transform hover:scale-105"
+    >
+      <div className="flex justify-center mb-4 transform transition-transform duration-300 hover:scale-110">
+        {icon}
+      </div>
+      <div className="text-4xl font-bold text-gray-900 mb-2 font-mono">
+        {count.toLocaleString()}
+      </div>
+      <div className="text-lg font-semibold text-gray-700 mb-1">
+        {label}
+      </div>
+      <div className="text-sm text-gray-600">
+        {description}
+      </div>
+    </div>
+  );
+};
 
 const StatsSection: React.FC = () => {
   const totalResources = categories.reduce((total, category) => total + category.resources.length, 0);
@@ -17,25 +54,29 @@ const StatsSection: React.FC = () => {
       icon: <BookOpen className="text-purple-600" size={32} />,
       value: totalResources,
       label: 'Curated Resources',
-      description: 'Hand-picked tools and platforms'
+      description: 'Hand-picked tools and platforms',
+      delay: 0
     },
     {
       icon: <Globe className="text-blue-600" size={32} />,
       value: categoriesCount,
       label: 'Categories',
-      description: 'Organized by purpose and use case'
+      description: 'Organized by purpose and use case',
+      delay: 200
     },
     {
       icon: <Zap className="text-yellow-600" size={32} />,
       value: freeResources,
       label: 'Free Resources',
-      description: 'No cost to get started'
+      description: 'No cost to get started',
+      delay: 400
     },
     {
       icon: <Users className="text-green-600" size={32} />,
       value: featuredResources,
       label: 'Featured Tools',
-      description: 'Editor\'s choice recommendations'
+      description: 'Editor\'s choice recommendations',
+      delay: 600
     }
   ];
 
@@ -53,23 +94,14 @@ const StatsSection: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {stats.map((stat, index) => (
-            <div
+            <StatItem
               key={index}
-              className="text-center p-6 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex justify-center mb-4">
-                {stat.icon}
-              </div>
-              <div className="text-3xl font-bold text-gray-900 mb-2">
-                {stat.value.toLocaleString()}
-              </div>
-              <div className="text-lg font-semibold text-gray-700 mb-1">
-                {stat.label}
-              </div>
-              <div className="text-sm text-gray-600">
-                {stat.description}
-              </div>
-            </div>
+              icon={stat.icon}
+              value={stat.value}
+              label={stat.label}
+              description={stat.description}
+              delay={stat.delay}
+            />
           ))}
         </div>
       </div>
