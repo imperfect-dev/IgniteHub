@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 
 import GradientButton from '../ui/GradientButton';
+import NewsletterSignup from '../common/NewsletterSignup';
 
 const CallToActionSection: React.FC = () => {
   return (
@@ -19,11 +20,18 @@ const CallToActionSection: React.FC = () => {
         </p>
 
         {/* CTA button */}
-        <Link to="/resources">
-          <GradientButton variant="secondary" size="large" icon={ArrowRight}>
-            Start Exploring
-          </GradientButton>
-        </Link>
+        <div className="mb-12">
+          <Link to="/resources">
+            <GradientButton variant="secondary" size="large" icon={ArrowRight}>
+              Start Exploring
+            </GradientButton>
+          </Link>
+        </div>
+
+        {/* Newsletter Signup */}
+        <div className="max-w-md mx-auto">
+          <NewsletterSignup />
+        </div>
       </div>
     </section>
   );
