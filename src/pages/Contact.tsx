@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, MessageSquare, Send, CheckCircle, AlertCircle, Database, Wifi } from 'lucide-react';
+import { Mail, MessageSquare, Send, CheckCircle, AlertCircle, Database, Wifi, WifiOff } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 import PageHeader from '../components/layout/PageHeader';
@@ -29,9 +29,9 @@ const ContactPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'fallback'>('checking');
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'fallback' | 'failed'>('checking');
 
-  // Check Supabase connection on component mount
+  // Check Supabase connection on component mount with improved error handling
   useEffect(() => {
     const checkConnection = async () => {
       if (!isSupabaseConfigured()) {
@@ -41,8 +41,21 @@ const ContactPage = () => {
       }
 
       try {
-        // Simple connection test
-        const { error } = await supabase.from('contacts').select('count').limit(1);
+        console.log('Testing Supabase connection...');
+        
+        // Create a timeout promise to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Connection timeout')), 10000);
+        });
+
+        // Test connection with timeout
+        const connectionPromise = supabase
+          .from('contacts')
+          .select('count')
+          .limit(1);
+
+        const { error } = await Promise.race([connectionPromise, timeoutPromise]) as any;
+        
         if (error) {
           console.warn('Supabase connection test failed:', error.message);
           setConnectionStatus('fallback');
@@ -50,9 +63,21 @@ const ContactPage = () => {
           console.log('Supabase connection successful');
           setConnectionStatus('connected');
         }
-      } catch (error) {
-        console.warn('Supabase connection error:', error);
-        setConnectionStatus('fallback');
+      } catch (error: any) {
+        console.warn('Supabase connection error:', error.message || error);
+        
+        // Handle specific error types
+        if (error.message?.includes('Failed to fetch') || 
+            error.message?.includes('CORS') ||
+            error.message?.includes('Network') ||
+            error.message?.includes('timeout') ||
+            error.name === 'TypeError') {
+          console.log('Network/CORS issue detected, using fallback email service');
+          setConnectionStatus('fallback');
+        } else {
+          console.log('Unknown connection error, using fallback email service');
+          setConnectionStatus('fallback');
+        }
       }
     };
 
@@ -122,12 +147,18 @@ const ContactPage = () => {
     }
   };
 
-  // Submit to Supabase database
+  // Submit to Supabase database with improved error handling
   const submitToSupabase = async () => {
     try {
       console.log('Submitting to Supabase database...');
 
-      const { data, error } = await supabase
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database request timeout')), 15000);
+      });
+
+      // Submit with timeout
+      const submitPromise = supabase
         .from('contacts')
         .insert([
           {
@@ -137,6 +168,8 @@ const ContactPage = () => {
           }
         ])
         .select();
+
+      const { data, error } = await Promise.race([submitPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('Supabase submission error:', error);
@@ -161,12 +194,12 @@ const ContactPage = () => {
       console.error('Supabase operation failed:', error);
       
       // Handle network and connection errors
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Unable to connect to database');
-      } else if (error.message.includes('CORS')) {
-        throw new Error('Database connection blocked');
-      } else if (error.name === 'AbortError' || error.message.includes('timeout')) {
-        throw new Error('Database request timed out');
+      if (error.message?.includes('Failed to fetch') || 
+          error.message?.includes('CORS') ||
+          error.message?.includes('Network') ||
+          error.message?.includes('timeout') ||
+          error.name === 'TypeError') {
+        throw new Error('Unable to connect to database - using email fallback');
       }
       
       // Re-throw with original message for other errors
@@ -323,7 +356,7 @@ const ContactPage = () => {
                     </div>
                   </>
                 )}
-                {connectionStatus === 'fallback' && (
+                {(connectionStatus === 'fallback' || connectionStatus === 'failed') && (
                   <>
                     <Mail className="text-yellow-600 mr-3" size={20} />
                     <div>
@@ -336,6 +369,22 @@ const ContactPage = () => {
                 )}
               </div>
             </div>
+
+            {/* CORS Help Info */}
+            {connectionStatus === 'fallback' && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start">
+                  <WifiOff className="text-amber-600 mr-3 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-amber-800 font-medium text-sm">Database Connection Issue</p>
+                    <p className="text-amber-700 text-xs mt-1">
+                      The database connection failed, likely due to CORS settings. Your messages will still be sent via email service. 
+                      To fix this, add your development URL to the Supabase project's allowed origins.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
