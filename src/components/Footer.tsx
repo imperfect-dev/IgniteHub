@@ -50,7 +50,7 @@ const Footer: React.FC = () => {
           <Rocket size={16} className="text-sky-400" />
           Launching dreams into reality
         </div>
-        © 2025 IgniteHub. Sondi Dharshan. All rights reserved.
+        © 2025 IgniteHub. All rights reserved.
       </div>
     </footer>
   );
