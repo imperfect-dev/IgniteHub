@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from './button';
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+  errorInfo?: ErrorInfo;
 }
 
 class ErrorBoundary extends Component<Props, State> {
@@ -23,10 +24,15 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    this.setState({ errorInfo });
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false, error: undefined });
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+  };
+
+  private handleGoHome = () => {
+    window.location.href = '/';
   };
 
   public render() {
@@ -43,18 +49,26 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             
             <h1 className="text-xl font-semibold text-gray-900 mb-2">
-              Something went wrong
+              Oops! Something went wrong
             </h1>
             
             <p className="text-gray-600 mb-6">
-              We're sorry, but something unexpected happened. Please try refreshing the page.
+              We're sorry, but something unexpected happened. Please try refreshing the page or go back to the homepage.
             </p>
             
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <div className="bg-gray-100 rounded-lg p-4 mb-6 text-left">
-                <p className="text-sm font-mono text-gray-800">
-                  {this.state.error.message}
+                <p className="text-sm font-mono text-gray-800 mb-2">
+                  <strong>Error:</strong> {this.state.error.message}
                 </p>
+                {this.state.errorInfo && (
+                  <details className="text-xs text-gray-600">
+                    <summary className="cursor-pointer">Stack trace</summary>
+                    <pre className="mt-2 whitespace-pre-wrap">
+                      {this.state.errorInfo.componentStack}
+                    </pre>
+                  </details>
+                )}
               </div>
             )}
             
@@ -69,9 +83,10 @@ class ErrorBoundary extends Component<Props, State> {
               
               <Button 
                 variant="outline" 
-                onClick={() => window.location.href = '/'}
+                onClick={this.handleGoHome}
                 className="w-full"
               >
+                <Home className="w-4 h-4 mr-2" />
                 Go to Homepage
               </Button>
             </div>

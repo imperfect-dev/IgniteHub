@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 // Generate or get session ID
@@ -22,9 +22,9 @@ export const useAnalytics = () => {
     duration: number = 0
   ) => {
     try {
-      // Skip tracking if using placeholder Supabase
-      if (supabase.supabaseUrl.includes('placeholder')) {
-        console.log('Analytics tracking skipped (placeholder Supabase)');
+      // Skip tracking if Supabase is not configured
+      if (!isSupabaseConfigured()) {
+        console.log('Analytics tracking skipped (Supabase not configured)');
         return;
       }
 
@@ -52,9 +52,9 @@ export const useAnalytics = () => {
     filtersApplied: Record<string, any> = {}
   ) => {
     try {
-      // Skip tracking if using placeholder Supabase
-      if (supabase.supabaseUrl.includes('placeholder')) {
-        console.log('Analytics tracking skipped (placeholder Supabase)');
+      // Skip tracking if Supabase is not configured
+      if (!isSupabaseConfigured()) {
+        console.log('Analytics tracking skipped (Supabase not configured)');
         return;
       }
 
@@ -80,9 +80,9 @@ export const useAnalytics = () => {
     resourcesViewed: number = 0
   ) => {
     try {
-      // Skip tracking if using placeholder Supabase
-      if (supabase.supabaseUrl.includes('placeholder')) {
-        console.log('Analytics tracking skipped (placeholder Supabase)');
+      // Skip tracking if Supabase is not configured
+      if (!isSupabaseConfigured()) {
+        console.log('Analytics tracking skipped (Supabase not configured)');
         return;
       }
 
@@ -103,8 +103,8 @@ export const useAnalytics = () => {
   // Update session
   const updateSession = useCallback(async () => {
     try {
-      // Skip tracking if using placeholder Supabase
-      if (supabase.supabaseUrl.includes('placeholder')) {
+      // Skip tracking if Supabase is not configured
+      if (!isSupabaseConfigured()) {
         return;
       }
 
@@ -125,12 +125,14 @@ export const useAnalytics = () => {
 
   // Initialize session on mount
   useEffect(() => {
-    updateSession();
-    
-    // Update session every 5 minutes
-    const interval = setInterval(updateSession, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
+    if (isSupabaseConfigured()) {
+      updateSession();
+      
+      // Update session every 5 minutes
+      const interval = setInterval(updateSession, 5 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }
   }, [updateSession]);
 
   return {

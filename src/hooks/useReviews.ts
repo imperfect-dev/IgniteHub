@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, ResourceReview } from '../lib/supabase';
+import { supabase, ResourceReview, isSupabaseConfigured } from '../lib/supabase';
 import { toast } from 'sonner';
 
 export const useReviews = (resourceId?: string) => {
@@ -9,6 +9,11 @@ export const useReviews = (resourceId?: string) => {
 
   // Fetch reviews for a resource
   const fetchReviews = async (resourceId: string) => {
+    if (!isSupabaseConfigured()) {
+      console.log('Reviews feature requires Supabase configuration');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -35,6 +40,10 @@ export const useReviews = (resourceId?: string) => {
 
   // Fetch user's review for a resource
   const fetchUserReview = async (resourceId: string) => {
+    if (!isSupabaseConfigured()) {
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -63,6 +72,11 @@ export const useReviews = (resourceId?: string) => {
     pros?: string[],
     cons?: string[]
   ) => {
+    if (!isSupabaseConfigured()) {
+      toast.error('Reviews feature requires Supabase configuration');
+      return false;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -102,6 +116,11 @@ export const useReviews = (resourceId?: string) => {
 
   // Vote on a review
   const voteOnReview = async (reviewId: string, isHelpful: boolean) => {
+    if (!isSupabaseConfigured()) {
+      toast.error('Reviews feature requires Supabase configuration');
+      return false;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -140,6 +159,11 @@ export const useReviews = (resourceId?: string) => {
     reportType: string,
     description?: string
   ) => {
+    if (!isSupabaseConfigured()) {
+      toast.error('Reporting feature requires Supabase configuration');
+      return false;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -174,7 +198,7 @@ export const useReviews = (resourceId?: string) => {
     : 0;
 
   useEffect(() => {
-    if (resourceId) {
+    if (resourceId && isSupabaseConfigured()) {
       fetchReviews(resourceId);
       fetchUserReview(resourceId);
     }

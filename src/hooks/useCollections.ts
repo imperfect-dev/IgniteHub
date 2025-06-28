@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, UserCollection, CollectionItem } from '../lib/supabase';
+import { supabase, UserCollection, CollectionItem, isSupabaseConfigured } from '../lib/supabase';
 import { toast } from 'sonner';
 
 export const useCollections = () => {
@@ -8,6 +8,11 @@ export const useCollections = () => {
 
   // Fetch user's collections
   const fetchCollections = async () => {
+    if (!isSupabaseConfigured()) {
+      console.log('Collections feature requires Supabase configuration');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -37,6 +42,11 @@ export const useCollections = () => {
     color: string = '#8B5CF6',
     icon: string = '📚'
   ) => {
+    if (!isSupabaseConfigured()) {
+      toast.error('Collections feature requires Supabase configuration');
+      return false;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -74,6 +84,11 @@ export const useCollections = () => {
     categoryId: string,
     notes?: string
   ) => {
+    if (!isSupabaseConfigured()) {
+      toast.error('Collections feature requires Supabase configuration');
+      return false;
+    }
+
     try {
       const { error } = await supabase
         .from('collection_items')
@@ -98,6 +113,11 @@ export const useCollections = () => {
 
   // Remove resource from collection
   const removeFromCollection = async (collectionId: string, resourceId: string) => {
+    if (!isSupabaseConfigured()) {
+      toast.error('Collections feature requires Supabase configuration');
+      return false;
+    }
+
     try {
       const { error } = await supabase
         .from('collection_items')
@@ -119,6 +139,10 @@ export const useCollections = () => {
 
   // Get collection items
   const getCollectionItems = async (collectionId: string): Promise<CollectionItem[]> => {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
     try {
       const { data, error } = await supabase
         .from('collection_items')
@@ -136,6 +160,10 @@ export const useCollections = () => {
 
   // Check if resource is in any collection
   const isInCollection = async (resourceId: string): Promise<string[]> => {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -155,7 +183,9 @@ export const useCollections = () => {
   };
 
   useEffect(() => {
-    fetchCollections();
+    if (isSupabaseConfigured()) {
+      fetchCollections();
+    }
   }, []);
 
   return {

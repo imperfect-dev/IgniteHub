@@ -1,16 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder_anon_key';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Create a mock client if environment variables are not properly set
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false
+// Check if environment variables are properly set
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder') || supabaseAnonKey.includes('placeholder')) {
+  console.warn('Supabase environment variables not properly configured. Some features may not work.');
+}
+
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder_anon_key',
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
   }
-});
+);
+
+// Helper function to check if Supabase is properly configured
+export const isSupabaseConfigured = () => {
+  return supabaseUrl && 
+         supabaseAnonKey && 
+         !supabaseUrl.includes('placeholder') && 
+         !supabaseAnonKey.includes('placeholder');
+};
 
 // Database types
 export interface ResourceView {
@@ -100,5 +116,13 @@ export interface UserNotification {
   message: string;
   data: Record<string, any>;
   is_read: boolean;
+  created_at: string;
+}
+
+export interface Contact {
+  id: number;
+  name: string;
+  email: string;
+  message: string;
   created_at: string;
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, MessageSquare, Send, CheckCircle, AlertCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 import PageHeader from '../components/layout/PageHeader';
 import ContentContainer from '../components/layout/ContentContainer';
@@ -29,6 +29,9 @@ const ContactPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Check if Supabase is configured
+  const supabaseConfigured = isSupabaseConfigured();
 
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -74,6 +77,13 @@ const ContactPage = () => {
       return;
     }
 
+    // Check if Supabase is configured
+    if (!supabaseConfigured) {
+      setErrorMessage('Contact form is not properly configured. Please check Supabase settings.');
+      setSubmitStatus('error');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -89,16 +99,17 @@ const ContactPage = () => {
         ]);
 
       if (error) {
-        throw error;
+        console.error('Supabase error:', error);
+        throw new Error(error.message || 'Failed to submit form');
       }
 
       // Success - reset form and show success message
       setFormData({ name: '', email: '', message: '' });
       setSubmitStatus('success');
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting contact form:', error);
-      setErrorMessage('Failed to send message. Please try again.');
+      setErrorMessage(error.message || 'Failed to send message. Please try again.');
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
@@ -151,6 +162,21 @@ const ContactPage = () => {
                 or if you'd like to help curate content, let us know. We're building this together.
               </p>
             </div>
+
+            {/* Configuration Warning */}
+            {!supabaseConfigured && (
+              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="text-yellow-600 mr-3" size={20} />
+                  <div>
+                    <p className="text-yellow-800 font-medium">Configuration Notice</p>
+                    <p className="text-yellow-700 text-sm">
+                      Contact form requires Supabase configuration. Please set up your environment variables.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -193,7 +219,7 @@ const ContactPage = () => {
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !supabaseConfigured}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Your name"
                   />
@@ -210,7 +236,7 @@ const ContactPage = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     required
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !supabaseConfigured}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="your.email@example.com"
                   />
@@ -226,7 +252,7 @@ const ContactPage = () => {
                     value={formData.message}
                     onChange={handleInputChange}
                     required
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !supabaseConfigured}
                     rows={6}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Tell us about your idea, suggestion, or how we can help..."
@@ -235,13 +261,18 @@ const ContactPage = () => {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !supabaseConfigured}
                   className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                       Sending...
+                    </>
+                  ) : !supabaseConfigured ? (
+                    <>
+                      <AlertCircle className="mr-2" size={18} />
+                      Configuration Required
                     </>
                   ) : (
                     <>
